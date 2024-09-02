@@ -1,198 +1,246 @@
-/******************
-CONFIGS HERE
-********************/
-char* my_device_name = "lester";
-// Adafruit IO Account Configuration
-// (to obtain these values, visit https://io.adafruit.com and click on Active Key)
-#define AIO_USERNAME  "donundeenlcc"
-#define AIO_KEY       "[NO_SECRETS]]"
+// Adafruit IO Subscription Example
+//
+// Adafruit invests time and resources providing this open source code.
+// Please support Adafruit and open source hardware by purchasing
+// products from Adafruit!
+//
+// Written by Todd Treece for Adafruit Industries
+// Copyright (c) 2016 Adafruit Industries
+// Licensed under the MIT license.
+//
+// All text above must be included in any redistribution.
 
+/************************** Configuration ***********************************/
 
+char* my_device_name = "amber";
+
+// edit the config.h tab and enter your Adafruit IO credentials
+// and any additional configuration needed for WiFi, cellular,
+// or ethernet clients.
+#include "config.h"
+
+// TIMING INCLUDES
+#include <elapsedMillis.h>
+#include <AsyncTimer.h> //https://github.com/Aasim-A/AsyncTimer
+AsyncTimer t;
+
+// Rate Limiter
+// Create a limiter limiting call rate to 5 per 1000ms.
+#include "RateLimiter.h"
+//static RateLimiter<1000, 25> limiter;
+static RateLimiter<60000, 25> limiter;
 
 /// set up WIFIManager
 #include <WiFiManager.h>          // install https://github.com/tzapu/WiFiManager WiFi Configuration Magic
 WiFiManager wifiManager;
 #include "WiFiClientSecure.h"
+// WiFiFlientSecure for SSL/TLS support
+WiFiClientSecure client;
 
-#include "Adafruit_MQTT.h"
-#include "Adafruit_MQTT_Client.h"
+#include "AdafruitIO_WiFi.h"
 
-// TIMING INCLUDES
-#include <AsyncTimer.h> //https://github.com/Aasim-A/AsyncTimer
-AsyncTimer t;
 
-/************************* Adafruit.io Setup *********************************/
+AdafruitIO_WiFi io(IO_USERNAME, IO_KEY,"","");
 
-#define AIO_SERVER      "io.adafruit.com"
+// set up the 'tapping' feed
+AdafruitIO_Feed *tappingSub = io.feed("tappingB");
+AdafruitIO_Feed *tappingPub = io.feed("tappingA");
 
-// Using port 8883 for MQTTS
-#define AIO_SERVERPORT  8883
+
+// RATE LIMIT STUFF
+int RATE_LIMIT = 30;
+int RATE_LIMIT_TIME = 60000;
+int rate_limit_count = 0;
+bool firstDroppedCallMessageSent = false;
+elapsedMillis sendTracker;
+int  sendCount = 0;
+bool firstSend = true;
 
 
 /*********************************
 DEVICE SETUPS
 *******************************/
-const int PIEZO_PIN = A2; // Piezo output
+const int PIEZO_PIN = A2; // Piezo input
+const int BUZZER_PIN = 16; //Pieazo buzzer on arduino pin 16
 
+//  Capacitive Touch Sensor Code
+const int TOUCH_PIN = T6;
+const int TOUCH_THRESHOLD = 10; // value lower than this triggers ON
+int touchVal = 0;
+int lastTouchSent = 0;
 
-/************ Global State (you don't need to change this!) ******************/
-
-// WiFiFlientSecure for SSL/TLS support
-WiFiClientSecure client;
-
-// Setup the MQTT client class by passing in the WiFi client and MQTT server and login details.
-Adafruit_MQTT_Client mqtt(&client, AIO_SERVER, AIO_SERVERPORT, AIO_USERNAME, AIO_KEY);
-
-// Notice MQTT paths for AIO follow the form: <username>/feeds/<feedname>
-Adafruit_MQTT_Subscribe sub_tapping = Adafruit_MQTT_Subscribe(&mqtt, AIO_USERNAME "/feeds/tapping");
-
-// io.adafruit.com root CA
-const char* adafruitio_root_ca = \
-      "-----BEGIN CERTIFICATE-----\n"
-      "MIIEjTCCA3WgAwIBAgIQDQd4KhM/xvmlcpbhMf/ReTANBgkqhkiG9w0BAQsFADBh\n"
-      "MQswCQYDVQQGEwJVUzEVMBMGA1UEChMMRGlnaUNlcnQgSW5jMRkwFwYDVQQLExB3\n"
-      "d3cuZGlnaWNlcnQuY29tMSAwHgYDVQQDExdEaWdpQ2VydCBHbG9iYWwgUm9vdCBH\n"
-      "MjAeFw0xNzExMDIxMjIzMzdaFw0yNzExMDIxMjIzMzdaMGAxCzAJBgNVBAYTAlVT\n"
-      "MRUwEwYDVQQKEwxEaWdpQ2VydCBJbmMxGTAXBgNVBAsTEHd3dy5kaWdpY2VydC5j\n"
-      "b20xHzAdBgNVBAMTFkdlb1RydXN0IFRMUyBSU0EgQ0EgRzEwggEiMA0GCSqGSIb3\n"
-      "DQEBAQUAA4IBDwAwggEKAoIBAQC+F+jsvikKy/65LWEx/TMkCDIuWegh1Ngwvm4Q\n"
-      "yISgP7oU5d79eoySG3vOhC3w/3jEMuipoH1fBtp7m0tTpsYbAhch4XA7rfuD6whU\n"
-      "gajeErLVxoiWMPkC/DnUvbgi74BJmdBiuGHQSd7LwsuXpTEGG9fYXcbTVN5SATYq\n"
-      "DfbexbYxTMwVJWoVb6lrBEgM3gBBqiiAiy800xu1Nq07JdCIQkBsNpFtZbIZhsDS\n"
-      "fzlGWP4wEmBQ3O67c+ZXkFr2DcrXBEtHam80Gp2SNhou2U5U7UesDL/xgLK6/0d7\n"
-      "6TnEVMSUVJkZ8VeZr+IUIlvoLrtjLbqugb0T3OYXW+CQU0kBAgMBAAGjggFAMIIB\n"
-      "PDAdBgNVHQ4EFgQUlE/UXYvkpOKmgP792PkA76O+AlcwHwYDVR0jBBgwFoAUTiJU\n"
-      "IBiV5uNu5g/6+rkS7QYXjzkwDgYDVR0PAQH/BAQDAgGGMB0GA1UdJQQWMBQGCCsG\n"
-      "AQUFBwMBBggrBgEFBQcDAjASBgNVHRMBAf8ECDAGAQH/AgEAMDQGCCsGAQUFBwEB\n"
-      "BCgwJjAkBggrBgEFBQcwAYYYaHR0cDovL29jc3AuZGlnaWNlcnQuY29tMEIGA1Ud\n"
-      "HwQ7MDkwN6A1oDOGMWh0dHA6Ly9jcmwzLmRpZ2ljZXJ0LmNvbS9EaWdpQ2VydEds\n"
-      "b2JhbFJvb3RHMi5jcmwwPQYDVR0gBDYwNDAyBgRVHSAAMCowKAYIKwYBBQUHAgEW\n"
-      "HGh0dHBzOi8vd3d3LmRpZ2ljZXJ0LmNvbS9DUFMwDQYJKoZIhvcNAQELBQADggEB\n"
-      "AIIcBDqC6cWpyGUSXAjjAcYwsK4iiGF7KweG97i1RJz1kwZhRoo6orU1JtBYnjzB\n"
-      "c4+/sXmnHJk3mlPyL1xuIAt9sMeC7+vreRIF5wFBC0MCN5sbHwhNN1JzKbifNeP5\n"
-      "ozpZdQFmkCo+neBiKR6HqIA+LMTMCMMuv2khGGuPHmtDze4GmEGZtYLyF8EQpa5Y\n"
-      "jPuV6k2Cr/N3XxFpT3hRpt/3usU/Zb9wfKPtWpoznZ4/44c1p9rzFcZYrWkj3A+7\n"
-      "TNBJE0GmP2fhXhP1D/XVfIW/h0yCJGEiV9Glm/uGOa3DXHlmbAcxSyCRraG+ZBkA\n"
-      "7h4SeM6Y8l/7MBRpPCz6l8Y=\n"
-      "-----END CERTIFICATE-----\n";
-
-/****************************** Feeds ***************************************/
-
-// Setup a feed called 'pub_tapping' for publishing.
-// Notice MQTT paths for AIO follow the form: <username>/feeds/<feedname>
-Adafruit_MQTT_Publish pub_tapping = Adafruit_MQTT_Publish(&mqtt, AIO_USERNAME "/feeds/tapping");
-
-/*************************** Sketch Code ************************************/
-
-void setup() 
-{
-  Serial.begin(9600); // initialize serial communications at 9600 bps
-  Serial.println("connecting?");
-  wifiManager.autoConnect(my_device_name);
-  Serial.println("connected I think");
-  // Set Adafruit IO's root CA
-  client.setCACert(adafruitio_root_ca);
-  led_flash(LED_BUILTIN, 500, 250, 5);
-  setup_subscribers();  
-  setup_timers();
-}
-void setup_subscribers(){
-    // Setup MQTT subscription for onoff & slider feed.
-  mqtt.subscribe(&sub_tapping);
-}
-void setup_timers(){
-  t.setInterval(keepMQTTAlive, 500);
-//  t.setInterval(getPiezo, 100);
-//  t.setInterval(sendPiezo, 2000);
-}
-
+// PIEZO CODE
 uint32_t maxPiezoThisCycle;
 uint32_t lastPiezoSent;
 
-void getPiezo(){
+
+
+
+void setup() {
+
+  // start the serial connection
+  Serial.begin(9600);
+  Serial.println("in setup");
+  sendTracker = 0;
+  while(! Serial); // wait for Serial to be ready
+  setup_devices();
+  // wait for serial monitor to open
+  setup_wifi();
+  setup_aio();
+  setup_subscribers();
+  setup_timers();  
+  led_flash(LED_BUILTIN, 250,125,5);
+}
+
+void setup_devices(){
+  pinMode(BUZZER_PIN, OUTPUT); // Set buzzer - pin 9 as an output
+  // initialize digital pin LED_BUILTIN as an output.
+  pinMode(LED_BUILTIN, OUTPUT);  
+  digitalWrite(LED_BUILTIN, LOW);
+}
+
+void setup_wifi(){
+  wifiManager.autoConnect(my_device_name);
+}
+
+void setup_aio(){
+  Serial.print("Connecting to Adafruit IO");
+
+  // start MQTT connection to io.adafruit.com
+  io.connect();
+  // wait for an MQTT connection
+  // NOTE: when blending the HTTP and MQTT API, always use the mqttStatus
+  // method to check on MQTT connection status specifically
+  while(io.mqttStatus() < AIO_CONNECTED) {
+    Serial.print(".");
+    delay(500);
+  }
+  // we are connected
+  Serial.println();
+  Serial.println(io.statusText());
+}
+
+void setup_subscribers(){
+ // set up a message handler for the count feed.
+  // the handleMessage function (defined below)
+  // will be called whenever a message is
+  // received from adafruit io.
+  tappingSub->onMessage(handleTapping);
+  // Because Adafruit IO doesn't support the MQTT retain flag, we can use the
+  // get() function to ask IO to resend the last value for this feed to just
+  // this MQTT client after the io client is connected.
+  tappingSub->get();
+  Serial.println("connected");
+
+}
+
+void setup_timers(){
+  Serial.println("setup_timers");
+ // t.setInterval(readPiezo, 100);
+  t.setInterval(readTouch, 100);
+  limiter.SetDroppedCallCallback([&](unsigned int dropped_calls){
+    Serial.println("rate limited!");
+    firstSend = true;
+    digitalWrite(LED_BUILTIN, HIGH);
+    if(!firstDroppedCallMessageSent){
+      firstDroppedCallMessageSent = true;
+      Serial.println("dropping calls, sending 0");
+      tappingPub->save(0);
+    }
+  });
+}
+
+void readTouch(){
   // Now we can publish stuff!
-  uint32_t piezoADC = analogRead(PIEZO_PIN);
-  float piezoV = piezoADC / 1023.0 * 5.0;
+  uint32_t piezoADC = touchRead(TOUCH_PIN);
+  //Serial.println(piezoADC); // uncomment this to see the values being produced, and adjust the TOUCH_THRESHOLD accordingly
+  // we're just goign to send an ON or OFF, not in-between values
+  if(piezoADC < TOUCH_THRESHOLD){
+    touchVal = 1;
+  }else{
+    touchVal = 0;
+  }
+  //  Serial.println(touchVal);
+  sendTouch();
+}
+
+void sendTouch(){
+  if(lastTouchSent != touchVal){
+    limiter.CallOrDrop([&](){    
+      if(firstSend){
+        sendTracker =0;
+        firstSend = false;
+        sendCount = 0;
+      }
+      sendCount++;
+      digitalWrite(LED_BUILTIN, LOW);
+      firstDroppedCallMessageSent = false;
+      Serial.print(F("\nSending val "));
+      Serial.print(touchVal);  
+      tappingPub->save(touchVal);
+    });
+    lastTouchSent = touchVal;
+  }
+
+}
+
+void readPiezo(){
+  // Now we can publish stuff!
+  uint32_t piezoADC = analogRead(PIEZO_PIN);  
+  Serial.println("reading " );
+  Serial.println(piezoADC);
+//  float piezoV = piezoADC / 1023.0 * 5.0;
   if(piezoADC > maxPiezoThisCycle){
     maxPiezoThisCycle = piezoADC;
   }
-
+  sendPiezo();
 }
 
 void sendPiezo(){
-
-  if(lastPiezoSent != maxPiezoThisCycle){
-    Serial.print(F("\nSending val "));
+  limiter.CallOrDrop([&](){
     Serial.print(maxPiezoThisCycle);
-    Serial.print(F(" to test feed..."));
-    if (! pub_tapping.publish(maxPiezoThisCycle)) {
-      Serial.println(F("Failed"));
-    } else {
-      Serial.println(F("OK!"));
+    firstDroppedCallMessageSent = false;
+    if(lastPiezoSent != maxPiezoThisCycle){
+      Serial.print(F("\nSending val "));
+      Serial.print(maxPiezoThisCycle);
+      Serial.print(F(" to test feed..."));
+      tappingPub->save(maxPiezoThisCycle);
+      lastPiezoSent = maxPiezoThisCycle;
+      maxPiezoThisCycle = 0;  
     }
-  }
-  lastPiezoSent = maxPiezoThisCycle;
-
-  maxPiezoThisCycle = 0;  
-}
-
-void keepMQTTAlive(){
-  // Ensure the connection to the MQTT server is alive (this will make the first
-  // connection and automatically reconnect when disconnected).  See the MQTT_connect
-  // function definition further below.
-  MQTT_connect();  
-
-  // ping the server to keep the mqtt connection alive
-  if(! mqtt.ping()) {
-    mqtt.disconnect();
-  }
+  });
 }
 
 
-void loop() 
-{ 
+void loop() {
+
+  // io.run(); is required for all sketches.
+  // it should always be present at the top of your loop
+  // function. it keeps the client connected to
+  // io.adafruit.com, and processes any incoming data.
+  io.run();
   t.handle();
-  subscription_loop();
+
+  // Because this sketch isn't publishing, we don't need
+  // a delay() in the main program loop.
+
 }
 
+// this function is called whenever a 'counter' message
+// is received from Adafruit IO. it was attached to
+// the counter feed in the setup() function above.
+void handleTapping(AdafruitIO_Data *data) {
 
-void subscription_loop(){
-  Adafruit_MQTT_Subscribe *subscription;
-  while ((subscription = mqtt.readSubscription(5000))) {
-    // Check if its the onoff button feed
-    if (subscription == &sub_tapping) {
-      Serial.print(F("sub_tapping: "));
-      Serial.println((char *)sub_tapping.lastread);
-    }
+  Serial.print("received <- ");
+  Serial.println(data->value());
+  int pitch = data->toInt();
+  if(pitch > 0){
+    tone(BUZZER_PIN, pitch); // Send 1KHz sound signal...
+    delay(1000);        // ...for 1 sec
   }
-}
+  noTone(BUZZER_PIN);     // Stop sound...
+  delay(1000);        // ...for 1sec
 
-// Function to connect and reconnect as necessary to the MQTT server.
-// Should be called in the loop function and it will take care if connecting.
-void MQTT_connect() {
-  int8_t ret;
-
-  // Stop if already connected.
-  if (mqtt.connected()) {
-    return;
-  }
-
-  Serial.print("Connecting to MQTT... ");
-
-  uint8_t retries = 3;
-  while ((ret = mqtt.connect()) != 0) { // connect will return 0 for connected
-       Serial.println(mqtt.connectErrorString(ret));
-       Serial.println("Retrying MQTT connection in 5 seconds...");
-       mqtt.disconnect();
-       delay(5000);  // wait 5 seconds
-       retries--;
-       if (retries == 0) {
-         // basically die and wait for WDT to reset me
-         while (1);
-       }
-  }
-
-  Serial.println("MQTT Connected!");
 }
 
 void led_flash(int pin, int onms, int offms, int times){
