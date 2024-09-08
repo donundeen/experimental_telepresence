@@ -1,21 +1,21 @@
+// IMPORTANT
+// before you upload this sketch to your arduino, change this to something unique to this device.
+// Whenever the device can't connect to wifi, it will set up it's own access point, with this name,
+// that you can connect to to enter the wifi credentials for the space you're in.
+#define MY_DEVICE_NAME "jared"
+
 /************************ Adafruit IO Config *******************************/
 
 // visit io.adafruit.com if you need to create an account,
 // or if you need your Adafruit IO key.
-#define IO_USERNAME ""
-#define IO_KEY ""
 
-/******************************* WIFI **************************************/
+// Send messages TO this one. This should be YOUR account
+#define PUB_IO_USERNAME ""
+#define PUB_IO_KEY ""
+#define PUB_IO_FEEDNAME "experimental_onoff"
 
-// the AdafruitIO_WiFi client will work with the following boards:
-//   - HUZZAH ESP8266 Breakout -> https://www.adafruit.com/products/2471
-//   - Feather HUZZAH ESP8266 -> https://www.adafruit.com/products/2821
-//   - Feather HUZZAH ESP32 -> https://www.adafruit.com/product/3405
-//   - Feather M0 WiFi -> https://www.adafruit.com/products/3010
-//   - Feather WICED -> https://www.adafruit.com/products/3056
-//   - Adafruit PyPortal -> https://www.adafruit.com/product/4116
-//   - Adafruit Metro M4 Express AirLift Lite ->
-//   https://www.adafruit.com/product/4000
-//   - Adafruit AirLift Breakout -> https://www.adafruit.com/product/4201
-//   - Adafruit AirLift Shield -> https://www.adafruit.com/product/4285
-//   - Adafruit AirLift FeatherWing -> https://www.adafruit.com/product/4264
+// get messages from this one. This should be YOUR BUDDY'S
+#define SUB_IO_USERNAME ""
+#define SUB_IO_KEY ""
+#define SUB_IO_FEEDNAME "tapping"
+
