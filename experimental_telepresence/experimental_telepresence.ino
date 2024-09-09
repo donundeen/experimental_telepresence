@@ -65,7 +65,7 @@ const int TOUCH_PIN = T9;
 const int TOUCH_THRESHOLD = 30; // value lower than this triggers ON
 
 // OUTPUT PIN for ON/OFF values
-const int onOffPin = LED_BUILTIN; // this uses the builtin LED for easy testing. 
+const int onOffPin = LED_BUILTIN; // this uses the builtin LED for easy testing. But it could be other stuff!
 
 
 /*****************************************
