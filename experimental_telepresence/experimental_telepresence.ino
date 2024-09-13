@@ -46,13 +46,21 @@ const int RATE_LIMIT_TIME = 60000; // within what time framae?
 bool firstDroppedCallMessageSent = false;
 RateLimiter<RATE_LIMIT_TIME, RATE_LIMIT> limiter;
 
-// prevent holding a recieved HIGH value forever
-int HANGOUT_HIGH_MS = 10000; // max amount of time after an ON message is received before we automatically send OFF
+
 unsigned short hangout_timeout_id = 0; 
+
+
 
 /*********************************
 DEVICE SETUPS
 *******************************/
+
+// Another variable you might change:
+// prevent holding a recieved HIGH value forever
+int HANGOUT_HIGH_MS = 10000; // max amount of time after an ON message is received before we automatically send OFF
+                             // 10000ms = 10 seconds
+
+
 // we might use different types of devices,sensors,etc for input and output
 // configure any variables you need for that here.
 // just because you set them up doesn't mean you have to use them :)
@@ -65,7 +73,7 @@ const int TOUCH_PIN = T9;
 const int TOUCH_THRESHOLD = 30; // value lower than this triggers ON
 
 // OUTPUT PIN for ON/OFF values
-const int onOffPin = LED_BUILTIN; // this uses the builtin LED for easy testing. But it could be other stuff!
+const int onOffOutputPin = LED_BUILTIN; // this uses the builtin LED for easy testing. But it could be other stuff!
 
 
 /*****************************************
@@ -86,9 +94,9 @@ and explore threshold values if you need them.
 // NOTE: not all inputs/outputs NEED a setup
 void setup_devices(){
 
-  // initialize the onOffPin as an output, and set to LOW
-  pinMode(onOffPin, OUTPUT);  
-  digitalWrite(onOffPin, LOW);
+  // initialize the onOffOutputPin as an output, and set to LOW
+  pinMode(onOffOutputPin, OUTPUT);  
+  digitalWrite(onOffOutputPin, LOW);
 
   // initialize digital pin LED_BUILTIN as an output.
   pinMode(LED_BUILTIN, OUTPUT);  
@@ -97,20 +105,22 @@ void setup_devices(){
 
 // you need a function that gets called frequently to check on your sensor.
 // set that here in setInterval
-// probably you should just have one line uncommented here
+// probably you should just have one line running here
 void setupReadTimers(){
  // t.setInterval(readPiezo, 100); // every 100 ms, run the readPiezo function
   t.setInterval(readTouch, 100); // every 100 ms, run the readTouch function
-
-}
-
-void readTouch(){
-  // read the touchPint
+  //               |        |
+} //               |________|
+  //               |     // these two names are the same, 
+  //      _________|     // so readTouch gets called every 100 milliseconds
+  //     |
+void readTouch() {// this function readTouch matches the name you set up here
+  // read the touchPin, which is the capacitive wire.
   uint32_t touchVal = touchRead(TOUCH_PIN);
   // uncomment this to see the values being produced, and adjust the TOUCH_THRESHOLD accordingly
-  //Serial.println(touchVal); 
+  Serial.println(touchVal); 
 
-  // we're just goign to send an ON or OFF, not in-between values.
+  // we're just going to send an ON or OFF, not in-between values.
   // so if the read touch value is less than TOUCH_THRESHOLD, we sent the send value to 1
   // More touch = lower value.
   int pubVal = 0;
@@ -118,11 +128,16 @@ void readTouch(){
     pubVal = 1;
   }
   Serial.println(pubVal);
+  // we've got a value, so send it!
+  // sendOfOff will make sure it's only sending CHANGED values,
+  // and it will enforce a rate limit so you don't maek adafruit.io angry
   sendOnOff(pubVal);
 }
 
+
+// this function is like readTouch above, but it reads a analog value from a Piezo sensor
+// if you set this up, change the name of the function in setupReadTimers
 void readPiezo(){
-  // Now we can publish stuff!
   uint32_t piezoVal = analogRead(PIEZO_PIN);  
   Serial.println("reading " );
   Serial.println(piezoVal);
@@ -151,34 +166,37 @@ and explore threshold values if you need them.
 // it will be either 1 - ON, or 0 - OFF
 // you can change the contents here to whatever is cool.
 void setOnOffOutput(int onOff){
-  digitalWrite(onOffPin, onOff); // this writes 1/0 aka HIGH/LOW  to whatever pin we have here. 
-                                  // this could be an LED, relay, etc....
-
+  digitalWrite(onOffOutputPin, onOff); // this writes 1/0 aka HIGH/LOW  to whatever pin we have here. 
+                                       // to start off it's just the builtin LED, 
+                                       // but it could be a bunch of LEDs, relay, etc....
+            
 }
 
 
 
 
 /*******************************************************
-You probably don't need to mess with things below here
+You probably don't need to mess with things below here,
+but feel free to see how it all works
 ********************************************************/
 
 // The setup function runs once right when the arduino starts up.
 // it sets things up. cuz that's its name
+// I like to make a bunch of other setup functions and call them all from here.
 void setup() {
 
   // start the serial connection
   Serial.begin(9600);
   Serial.println("in setup");
   while(! Serial); // wait for Serial to be ready
-  setup_devices();
-  // wait for serial monitor to open
-  setup_wifi();
-  setup_aio();
-  setup_subscribers();
-  setup_rate_limiter();
-  setup_timers();  
-  led_flash(LED_BUILTIN, 250,125,5);
+  setup_devices(); // calls the setup functions for your specific input/outputs devices/sensors
+  setup_wifi();    // sets up the WIFI, creates the AP if necessary
+  setup_aio();     // sets up connections to adafruit.io
+  setup_subscribers(); // sets up connections to the adafruit feeds
+  setup_rate_limiter();  // set up the rate limiter that keeps adafruit happy if we get too wild with the sendings
+  setup_timers();      // set up the code that makes setInterval work. 
+                        // SetInterval is how we can say "call this function every 100 milliseconds" without making the code wait.
+  led_flash(LED_BUILTIN, 250,125,5); // flash a light 5 times to say we're all set up!
 }
 
 
@@ -191,6 +209,10 @@ void setup_timers(){
   setupReadTimers(); // setup timers for reading sensor values.
 }
 
+
+// set up the rate limiter that keeps adafruit happy if we get too wild with the sendings
+// NOTE: I'm not 1000% sure the rate limiter works jsut as it should,
+//  so try design your device so it doesn't encourage intense sendingzees
 void setup_rate_limiter(){
   limiter.SetDroppedCallCallback([&](unsigned int dropped_calls){
     Serial.println("rate limited!");
@@ -206,11 +228,16 @@ void setup_rate_limiter(){
 
 
 // setup the WIFI stuff.
+// If it doesn't find a wifi it knows how to connect to, 
+// it creates its own wifi where you can connect to it and give it new wifi credentials
 void setup_wifi(){
   wifiManager.autoConnect(my_device_name);
 }
 
 // setup the Adafruit.io connections
+// there's two AIO connections:
+// io_pub is where you SEND your on-off values
+// io_sub is where you LISTEN for your buddy's on-off values
 void setup_aio(){
   Serial.print("Connecting to Adafruit IO");
 
@@ -233,18 +260,20 @@ void setup_aio(){
 
 // this function runs in a loop whenever the arduino is turned on right after the setup function runs.
 void loop() {
-  // io.run(); is required for all sketches.
+  // io_pub/sub.run(); is required for all sketches.
   // it should always be present at the top of your loop
   // function. it keeps the client connected to
   // io.adafruit.com, and processes any incoming data.
   io_pub.run();
   io_sub.run();
+  // t.handle is used for the timer that makes setInterval work.
   t.handle();
 }
 
 
 
 // send an 1/0 ON/OFF value if it's changed.
+// use a rate limiter so you don't anger the adafruit.io server.
 int lastPubValSent = 0;
 void sendOnOff(int onOff){
   if(lastPubValSent != onOff){
@@ -263,8 +292,10 @@ void sendOnOff(int onOff){
 
 
 // setup the code that runs when you get a message on the thing you're subscribed to.
+// this function runs once when the arduino starts up, and is called from the startup function
 void setup_subscribers(){
-  // you might change this code if you want to call a different function when you get a message.
+  // handleOnOff is the code that gets called whenever there's a message to the subscriber 
+  // IE, when your buddy sends a message, this gets called.
   onOffSub->onMessage(handleOnOff);
   // Because Adafruit IO doesn't support the MQTT retain flag, we can use the
   // get() function to ask IO to resend the last value for this feed to just
@@ -280,10 +311,13 @@ void handleOnOff(AdafruitIO_Data *data) {
   Serial.println(data->value());
   int value = data->toInt(); // 1 or 0
   setOnOffOutput(value); // calling this function in the "playground", so users only have to worry about what to do with the on/off value
-  // We don't want to be stuck in ON mode forever, so if this message here is ON/1/HIGH, 
+
+  // We don't want to be stuck in ON mode forever, 
+  // (imagine if your buddy sent an ON value, but then dropped their device in the bathtub and it broke)
+  // so if this message here is ON/1/HIGH, 
   // we are going to set it back to OFF/0/LOW after some amount of time.
   t.cancel(hangout_timeout_id); // cancel existing timeout if there is one.
-  hangout_timeout_id = t.setTimeout(autoOff, HANGOUT_HIGH_MS);
+  hangout_timeout_id = t.setTimeout(autoOff, HANGOUT_HIGH_MS); // you can change HANGOUT_HIGH_MS at the top of the code if you want.
 }
 
 // set your device to OFF. This is used as a timeout so we don't get stuck on ON
