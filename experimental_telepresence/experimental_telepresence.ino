@@ -65,11 +65,13 @@ int HANGOUT_HIGH_MS = 10000; // max amount of time after an ON message is receiv
 // configure any variables you need for that here.
 // just because you set them up doesn't mean you have to use them :)
 // Piezo as an input device
-const int PIEZO_PIN = A2; // Piezo input
+const int PIEZO_PIN = A2; // Piezo input. A2 is labelled A2/34 on the arduino. 7 down from top on long side.
+                          // 
 const int PIEZO_THRESHOLD = 50; // value higher than this triggers ON
 
 //  Capacitive Touch Sensor Code
-const int TOUCH_PIN = T9; 
+const int TOUCH_PIN = T9;  // Pin T9 is labelled 32 on the arduino, 4 up from the bottom on the short side. 
+                            // one wire going in here then attached to other stuff, is all you need!
 const int TOUCH_THRESHOLD = 30; // value lower than this triggers ON
 
 // OUTPUT PIN for ON/OFF values
@@ -165,14 +167,18 @@ and explore threshold values if you need them.
 // this function is where you do stuff with the value recieved from Adafruit.io
 // it will be either 1 - ON, or 0 - OFF
 // you can change the contents here to whatever is cool.
+// I recommend making another function for whatever you want the output to be, 
+// then changing the function call in this function from digitalPinOnOff to whatever you make
 void setOnOffOutput(int onOff){
-  digitalWrite(onOffOutputPin, onOff); // this writes 1/0 aka HIGH/LOW  to whatever pin we have here. 
-                                       // to start off it's just the builtin LED, 
-                                       // but it could be a bunch of LEDs, relay, etc....
+  digitalPinOnOff(onOff);
             
 }
 
-
+void digitalPinOnOff(int onOff){
+  digitalWrite(onOffOutputPin, onOff); // this writes 1/0 aka HIGH/LOW  to whatever pin we have here. 
+                                       // to start off it's just the builtin LED, 
+                                       // but it could be a bunch of LEDs, relay, etc....
+}
 
 
 /*******************************************************
