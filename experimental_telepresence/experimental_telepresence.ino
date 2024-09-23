@@ -127,8 +127,6 @@ Servo myservo;  // create servo object to control a servo
 int SERVO_OUTPUT_PIN = A0; 
 // END SERVO SETUP VARIABLES
 
-
-
 // OUTPUT PIN for LEDS values
 const int LED_OUTPUT_PIN = LED_BUILTIN; // this uses the builtin LED for easy testing. But it could be other stuff!
 
@@ -145,33 +143,24 @@ END OUTPUT SETUP VARIABLES
 
 
 /*****************************************
-PLAYGROUND FOR READING AND SENDING SENSOR VALUES
-- this is where you might play with things.
-- what other sensors could you use?
-use these functions as a template, 
-copy and rename them, eg readFlex or readButton
-and explore threshold values if you need them.
-*****************************************/
-
-// Depening on what sensors you want to use to read data
-// and what functions do that reading,
-// you might change the code in here:
+SETUP DEVICES FUNCTION
+*********************************************/
 
 // setup code here for whatever you're using for inputs and outputs
 // eg leds, buttons, piezos, etc
 // NOTE: not all inputs/outputs NEED a setup
+// Find the code segment for your input and output things, and uncomment them.
+// make sure the code for other inputs and outputs is commentsed.
 void setup_devices(){
 
 
   /*******************************
   INPUT DEVICE SETUP
   ********************************/
-
+// not many input devices need setups here.
   /*******************************
   END INPUT DEVICE SETUP
   ********************************/
-
-
 
   /*******************************
   OUTPUT DEVICE SETUP
@@ -182,19 +171,14 @@ void setup_devices(){
   pinMode(LED_BUILTIN, OUTPUT);  
   digitalWrite(LED_BUILTIN, LOW);
 
-
   // if you're using an EXTERNAL LED
-  // initialize the LED_OUTPUT_PIN as an output, and set to LOW
-  // it might be the same as LED_BUILTIN, but maybe not...
-  //pinMode(LED_OUTPUT_PIN, OUTPUT);  
-  //digitalWrite(LED_OUTPUT_PIN, LOW);
-
+  ledOutputSetup();
 
   // if you're using the NON-LATCHING RELAY
   //relayOutputSetup();
 
   // if you're using the LATCHING RELAY
-  latchingRelayOutputSetup();
+  //latchingRelayOutputSetup();
 
   // setup the MIDI player if you're using it
   //midiOutputSetup();
@@ -214,48 +198,16 @@ void setup_devices(){
   ********************************/
 }
 
-void relayOutputSetup(){
-  // if you're using the NON-LATCHING RELAY
-  // initialize the RELAY_OUTPUT_PIN as an output and set to low
-  pinMode(RELAY_OUTPUT_PIN, OUTPUT);  
-  digitalWrite(RELAY_OUTPUT_PIN, LOW);
-}
-
-void latchingRelayOutputSetup(){
-  // if you're using the LATCHING RELAY
-  // initialize the LATCHING_RELAY_SET_PIN as an output and set to low
-  // initialize the LATCHING_RELAY_UNSET_PIN as an output and set to high, then low
-  pinMode(LATCHING_RELAY_SET_PIN, OUTPUT);  
-  pinMode(LATCHING_RELAY_UNSET_PIN, OUTPUT);  
-  digitalWrite(LATCHING_RELAY_SET_PIN, LOW);
-  digitalWrite(LATCHING_RELAY_UNSET_PIN, HIGH);
-  delay(20);
-  digitalWrite(LATCHING_RELAY_UNSET_PIN, LOW);
-}
-
-void servoOutputSetup(){
-  myservo.setPeriodHertz(50);// Standard 50hz servo
-  myservo.attach(SERVO_OUTPUT_PIN, 500, 2400);   // attaches the servo on pin SERVO_OUTPUT_PIN to the servo object
-                                         // using SG90 servo min/max of 500us and 2400us
-                                         // for MG995 large servo, use 1000us and 2000us,
-                                         // which are the defaults, so this line could be
-                                         // "myservo.attach(servoPin);"
-}
-
-void midiOutputSetup(){
-  VS1053_MIDI.begin(31250); // MIDI uses a 'strange baud rate'
-  midiSetChannelBank(0, VS1053_BANK_MELODY);
-  midiSetChannelVolume(0, 127);
-  midiSetInstrument(0, VS1053_GM1_OCARINA); // this number coudl be different for different tones
-}
-
+/*****************************************
+SENSOR READ TIMING SETUP
+****************************************/
 // you need a function that gets called frequently to check on your sensor.
 // set that here in setInterval
 // probably you should just have one line running here
 void setupReadTimers(){
-  t.setInterval(readFlex, 100); // every 100 ms, run the readPiezo function
+ // t.setInterval(readFlex, 100); // every 100 ms, run the readPiezo function
  // t.setInterval(readPiezo, 100); // every 100 ms, run the readPiezo function
- // t.setInterval(readTouch, 100); // every 100 ms, run the readTouch function
+   t.setInterval(readTouch, 100); // every 100 ms, run the readTouch function
   //               |        |
 } //               |________|
   //               |     // these two names are the same, 
@@ -280,6 +232,10 @@ void readTouch() {// this function readTouch matches the name you set up here
   // and it will enforce a rate limit so you don't maek adafruit.io angry
   sendOnOff(pubVal);
 }
+/*****************************************
+END SENSOR READ TIMING SETUP
+****************************************/
+
 
 
 // this function is like readTouch above, but it reads a analog value from a Piezo sensor
@@ -334,8 +290,8 @@ and explore threshold values if you need them.
 // then changing the function call in this function from digitalPinOnOff to whatever you make
 void setOnOffOutput(int onOff){
   //relayOnOff(onOff); // use this if you have a relay attached
-  latchingRelayOnOff(onOff); // use this if you have a relay attached
-//  ledOnOff(onOff); // use this if you're turning an LED on and off // 
+  //latchingRelayOnOff(onOff); // use this if you have a relay attached
+   ledOnOff(onOff); // use this if you're turning an LED on and off // 
 //  midiOnOff(onOff); // use this if you're playing MIDI notes     
 //  servoOnOff(onOff);  // use this if you're controlling a SERVO
 }
@@ -635,3 +591,48 @@ void midiNoteOff(uint8_t chan, uint8_t n, uint8_t vel) {
   VS1053_MIDI.write(vel);
 }
 // END MIDI STUFF
+
+
+// other device output setup stuff
+
+void relayOutputSetup(){
+  // if you're using the NON-LATCHING RELAY
+  // initialize the RELAY_OUTPUT_PIN as an output and set to low
+  pinMode(RELAY_OUTPUT_PIN, OUTPUT);  
+  digitalWrite(RELAY_OUTPUT_PIN, LOW);
+}
+
+void latchingRelayOutputSetup(){
+  // if you're using the LATCHING RELAY
+  // initialize the LATCHING_RELAY_SET_PIN as an output and set to low
+  // initialize the LATCHING_RELAY_UNSET_PIN as an output and set to high, then low
+  pinMode(LATCHING_RELAY_SET_PIN, OUTPUT);  
+  pinMode(LATCHING_RELAY_UNSET_PIN, OUTPUT);  
+  digitalWrite(LATCHING_RELAY_SET_PIN, LOW);
+  digitalWrite(LATCHING_RELAY_UNSET_PIN, HIGH);
+  delay(20);
+  digitalWrite(LATCHING_RELAY_UNSET_PIN, LOW);
+}
+
+void servoOutputSetup(){
+  myservo.setPeriodHertz(50);// Standard 50hz servo
+  myservo.attach(SERVO_OUTPUT_PIN, 500, 2400);   // attaches the servo on pin SERVO_OUTPUT_PIN to the servo object
+                                         // using SG90 servo min/max of 500us and 2400us
+                                         // for MG995 large servo, use 1000us and 2000us,
+                                         // which are the defaults, so this line could be
+                                         // "myservo.attach(servoPin);"
+}
+
+void midiOutputSetup(){
+  VS1053_MIDI.begin(31250); // MIDI uses a 'strange baud rate'
+  midiSetChannelBank(0, VS1053_BANK_MELODY);
+  midiSetChannelVolume(0, 127);
+  midiSetInstrument(0, VS1053_GM1_OCARINA); // this number coudl be different for different tones
+}
+
+void ledOutputSetup(){
+    // initialize the LED_OUTPUT_PIN as an output, and set to LOW
+  // it might be the same as LED_BUILTIN, but maybe not...
+  pinMode(LED_OUTPUT_PIN, OUTPUT);  
+  digitalWrite(LED_OUTPUT_PIN, LOW);
+}
