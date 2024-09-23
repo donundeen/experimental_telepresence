@@ -42,7 +42,7 @@ AdafruitIO_Feed *onOffSub = io_sub.feed(SUB_IO_FEEDNAME);      // listen to this
 // rate limit is 30 per minute PER ACCOUNT, but we'll set to 25 to give some breathing room
 #include "RateLimiter.h"
 const int RATE_LIMIT = 25; // how many messages you're allowed
-const int RATE_LIMIT_TIME = 60000; // within what time framae?
+const int RATE_LIMIT_TIME = 60000; // within what time frame? 60000ms = 60 seconds = 1 minute (imperial)
 bool firstDroppedCallMessageSent = false;
 RateLimiter<RATE_LIMIT_TIME, RATE_LIMIT> limiter;
 
@@ -51,9 +51,11 @@ unsigned short hangout_timeout_id = 0;
 
 
 
-/*********************************
+/*******************************************************
 DEVICE SETUPS
-*******************************/
+
+Here's where you can change stuff
+******************************************************/
 
 // Another variable you might change:
 // prevent holding a recieved HIGH value forever
@@ -61,21 +63,85 @@ int HANGOUT_HIGH_MS = 10000; // max amount of time after an ON message is receiv
                              // 10000ms = 10 seconds
 
 
+
+
+/*****************************************************
+INPUT SETUP VARIABLES
+******************************************************/
 // we might use different types of devices,sensors,etc for input and output
 // configure any variables you need for that here.
 // just because you set them up doesn't mean you have to use them :)
+
 // Piezo as an input device
-const int PIEZO_PIN = A2; // Piezo input. A2 is labelled A2/34 on the arduino. 7 down from top on long side.
-                          // 
+const int PIEZO_PIN = A2; // Piezo input. A2 is labelled A2/34 on the arduino. 7 down from top on long side.                          // 
 const int PIEZO_THRESHOLD = 50; // value higher than this triggers ON
+
+// Flex as an input device:
+const int FLEX_PIN = A2; // Piezo input. A2 is labelled A2/34 on the arduino. 7 down from top on long side.                          // 
+const int FLEX_THRESHOLD = 1000; // value higher than this triggers ON
 
 //  Capacitive Touch Sensor Code
 const int TOUCH_PIN = T9;  // Pin T9 is labelled 32 on the arduino, 4 up from the bottom on the short side. 
                             // one wire going in here then attached to other stuff, is all you need!
-const int TOUCH_THRESHOLD = 30; // value lower than this triggers ON
+const int TOUCH_THRESHOLD = 30; // value lower than this triggers ON. You might change this!
 
-// OUTPUT PIN for ON/OFF values
-const int onOffOutputPin = LED_BUILTIN; // this uses the builtin LED for easy testing. But it could be other stuff!
+/*****************************************************
+END INPUT SETUP VARIABLES
+******************************************************/
+
+
+/*****************************************************
+OUTPUT SETUP VARIABLES
+******************************************************/
+
+// MIDI OUTPUT DEVICE SETUP VARIABLES (ONLY if you are using the MusicMaker Shield to play MIDI, not mp3 files)
+// Solder closed jumper on bottom!
+// See http://www.vlsi.fi/fileadmin/datasheets/vs1053.pdf Pg 31
+#define VS1053_BANK_DEFAULT 0x00
+#define VS1053_BANK_DRUMS1 0x78
+#define VS1053_BANK_DRUMS2 0x7F
+#define VS1053_BANK_MELODY 0x79
+
+// change this number to other things for different sounds.
+// See http://www.vlsi.fi/fileadmin/datasheets/vs1053.pdf Pg 32 for more!
+#define VS1053_GM1_OCARINA 80 
+
+#define MIDI_NOTE_ON  0x90
+#define MIDI_NOTE_OFF 0x80
+#define MIDI_CHAN_MSG 0xB0
+#define MIDI_CHAN_BANK 0x00
+#define MIDI_CHAN_VOLUME 0x07
+#define MIDI_CHAN_PROGRAM 0xC0
+#if defined(ESP8266) || defined(__AVR_ATmega328__) || defined(__AVR_ATmega328P__)
+  #define VS1053_MIDI Serial
+#else
+  // anything else? use the hardware serial1 port
+  #define VS1053_MIDI Serial1
+#endif
+// END MIDI OUTPUT SETUP
+
+
+// SERVO SETUP VARIABLES
+#include <ESP32Servo.h>
+Servo myservo;  // create servo object to control a servo
+int SERVO_OUTPUT_PIN = A0; 
+// END SERVO SETUP VARIABLES
+
+
+
+// OUTPUT PIN for LEDS values
+const int LED_OUTPUT_PIN = LED_BUILTIN; // this uses the builtin LED for easy testing. But it could be other stuff!
+
+// OUTPUT PIN FOR A RELAY
+const int RELAY_OUTPUT_PIN = A0; // A0 pin is labeled A0 on the Ardiuno, 5 down from the top on the long side
+
+const int LATCHING_RELAY_SET_PIN = A0; // a different kind of relay that his different pins for SET (ON) and UNSET (OFF)
+const int LATCHING_RELAY_UNSET_PIN = A1; // a different kind of relay that his different pins for SET (ON) and UNSET (OFF)
+
+/*****************************************************
+END OUTPUT SETUP VARIABLES
+******************************************************/
+
 
 
 /*****************************************
@@ -96,21 +162,100 @@ and explore threshold values if you need them.
 // NOTE: not all inputs/outputs NEED a setup
 void setup_devices(){
 
-  // initialize the onOffOutputPin as an output, and set to LOW
-  pinMode(onOffOutputPin, OUTPUT);  
-  digitalWrite(onOffOutputPin, LOW);
+
+  /*******************************
+  INPUT DEVICE SETUP
+  ********************************/
+
+  /*******************************
+  END INPUT DEVICE SETUP
+  ********************************/
+
+
+
+  /*******************************
+  OUTPUT DEVICE SETUP
+  ********************************/
 
   // initialize digital pin LED_BUILTIN as an output.
+  // initialize the ledOutputPin as an output, and set to LOW
   pinMode(LED_BUILTIN, OUTPUT);  
   digitalWrite(LED_BUILTIN, LOW);
+
+
+  // if you're using an EXTERNAL LED
+  // initialize the LED_OUTPUT_PIN as an output, and set to LOW
+  // it might be the same as LED_BUILTIN, but maybe not...
+  //pinMode(LED_OUTPUT_PIN, OUTPUT);  
+  //digitalWrite(LED_OUTPUT_PIN, LOW);
+
+
+  // if you're using the NON-LATCHING RELAY
+  //relayOutputSetup();
+
+  // if you're using the LATCHING RELAY
+  latchingRelayOutputSetup();
+
+  // setup the MIDI player if you're using it
+  //midiOutputSetup();
+
+  // setup the SERVO if you're using it
+  //servoOutputSetup();
+
+  // send an on and off value to test it
+  Serial.println("testing onoff");
+  setOnOffOutput(HIGH);
+  delay(500);
+  setOnOffOutput(LOW);
+  Serial.println("DONE testing onoff");
+
+  /*******************************
+  END OUTPUT DEVICE SETUP
+  ********************************/
+}
+
+void relayOutputSetup(){
+  // if you're using the NON-LATCHING RELAY
+  // initialize the RELAY_OUTPUT_PIN as an output and set to low
+  pinMode(RELAY_OUTPUT_PIN, OUTPUT);  
+  digitalWrite(RELAY_OUTPUT_PIN, LOW);
+}
+
+void latchingRelayOutputSetup(){
+  // if you're using the LATCHING RELAY
+  // initialize the LATCHING_RELAY_SET_PIN as an output and set to low
+  // initialize the LATCHING_RELAY_UNSET_PIN as an output and set to high, then low
+  pinMode(LATCHING_RELAY_SET_PIN, OUTPUT);  
+  pinMode(LATCHING_RELAY_UNSET_PIN, OUTPUT);  
+  digitalWrite(LATCHING_RELAY_SET_PIN, LOW);
+  digitalWrite(LATCHING_RELAY_UNSET_PIN, HIGH);
+  delay(20);
+  digitalWrite(LATCHING_RELAY_UNSET_PIN, LOW);
+}
+
+void servoOutputSetup(){
+  myservo.setPeriodHertz(50);// Standard 50hz servo
+  myservo.attach(SERVO_OUTPUT_PIN, 500, 2400);   // attaches the servo on pin SERVO_OUTPUT_PIN to the servo object
+                                         // using SG90 servo min/max of 500us and 2400us
+                                         // for MG995 large servo, use 1000us and 2000us,
+                                         // which are the defaults, so this line could be
+                                         // "myservo.attach(servoPin);"
+}
+
+void midiOutputSetup(){
+  VS1053_MIDI.begin(31250); // MIDI uses a 'strange baud rate'
+  midiSetChannelBank(0, VS1053_BANK_MELODY);
+  midiSetChannelVolume(0, 127);
+  midiSetInstrument(0, VS1053_GM1_OCARINA); // this number coudl be different for different tones
 }
 
 // you need a function that gets called frequently to check on your sensor.
 // set that here in setInterval
 // probably you should just have one line running here
 void setupReadTimers(){
+  t.setInterval(readFlex, 100); // every 100 ms, run the readPiezo function
  // t.setInterval(readPiezo, 100); // every 100 ms, run the readPiezo function
-  t.setInterval(readTouch, 100); // every 100 ms, run the readTouch function
+ // t.setInterval(readTouch, 100); // every 100 ms, run the readTouch function
   //               |        |
 } //               |________|
   //               |     // these two names are the same, 
@@ -139,6 +284,8 @@ void readTouch() {// this function readTouch matches the name you set up here
 
 // this function is like readTouch above, but it reads a analog value from a Piezo sensor
 // if you set this up, change the name of the function in setupReadTimers
+// to make this circuit, connect one wire to PIEZO_PIN, one wire to ground,
+// and put a 1M-Ohm resistor between PIEZO_PIN and GROUND
 void readPiezo(){
   uint32_t piezoVal = analogRead(PIEZO_PIN);  
   Serial.println("reading " );
@@ -149,6 +296,22 @@ void readPiezo(){
   }
   sendOnOff(pubVal);
 }
+
+
+// this function is exactly like readPiezo above, but it reads a analog value from a Flex sensor
+// to set this up, put one wire coming from the flex sensor into FLEX_PIN,
+// the other wire from flex sensor needs to go to power and GND, with a 10k resistor between them.
+void readFlex(){
+  uint32_t flexVal = analogRead(FLEX_PIN);  
+  Serial.println("reading " );
+  Serial.println(flexVal);
+  int pubVal = 0;
+  if(flexVal > FLEX_THRESHOLD){ // flexVal goes UP when you flex it.
+    pubVal = 1;
+  }
+  sendOnOff(pubVal);
+}
+
 
 
 /********************************************
@@ -170,14 +333,82 @@ and explore threshold values if you need them.
 // I recommend making another function for whatever you want the output to be, 
 // then changing the function call in this function from digitalPinOnOff to whatever you make
 void setOnOffOutput(int onOff){
-  digitalPinOnOff(onOff);
-            
+  //relayOnOff(onOff); // use this if you have a relay attached
+  latchingRelayOnOff(onOff); // use this if you have a relay attached
+//  ledOnOff(onOff); // use this if you're turning an LED on and off // 
+//  midiOnOff(onOff); // use this if you're playing MIDI notes     
+//  servoOnOff(onOff);  // use this if you're controlling a SERVO
 }
 
-void digitalPinOnOff(int onOff){
-  digitalWrite(onOffOutputPin, onOff); // this writes 1/0 aka HIGH/LOW  to whatever pin we have here. 
+
+// turning an LED on and off
+void ledOnOff(int onOff){
+  digitalWrite(LED_OUTPUT_PIN, onOff); // this writes 1/0 aka HIGH/LOW  to whatever pin we have here. 
                                        // to start off it's just the builtin LED, 
                                        // but it could be a bunch of LEDs, relay, etc....
+}
+
+
+// turning a NON-LATCHING RELAY on and off
+void relayOnOff(int onOff){
+    digitalWrite(RELAY_OUTPUT_PIN, onOff); // this writes 1/0 aka HIGH/LOW  to whatever pin we have here. 
+}
+
+// turning a LATCHING RELAY on and off
+void latchingRelayOnOff(int onOff){
+  if(onOff == 1){
+    Serial.println("set");
+    digitalWrite(LATCHING_RELAY_SET_PIN, HIGH); // this writes 1/0 aka HIGH/LOW  to whatever pin we have here. 
+    digitalWrite(LATCHING_RELAY_UNSET_PIN, LOW); // this writes 1/0 aka HIGH/LOW  to whatever pin we have here. 
+    delay(20);
+    digitalWrite(LATCHING_RELAY_SET_PIN, LOW); // this writes 1/0 aka HIGH/LOW  to whatever pin we have here. 
+  }else{
+    
+    Serial.println("unset");
+    digitalWrite(LATCHING_RELAY_UNSET_PIN, HIGH); // this writes 1/0 aka HIGH/LOW  to whatever pin we have here. 
+    digitalWrite(LATCHING_RELAY_SET_PIN, LOW); // this writes 1/0 aka HIGH/LOW  to whatever pin we have here. 
+    delay(20);
+    digitalWrite(LATCHING_RELAY_UNSET_PIN, LOW); // this writes 1/0 aka HIGH/LOW  to whatever pin we have here. 
+
+  }
+}
+
+
+// triggering midi notes, if you have the featehr musicMaker attached in MIDI mode
+// play with different note combintations to make melodies or random weirdness.
+void midiOnOff(int onOff){
+  if(onOff == HIGH){
+    // when a button ON is sent
+    for (uint8_t i=60; i<69; i++) {
+      midiNoteOn(0, i, 127);  // midiNoteOn turns a note on. Here, i is the note number, 0 is the channel, and 127 is the volume (127 is max)
+      delay(100); // wait some time (in milliseconds)
+      midiNoteOff(0, i, 127); // midiNoteOff turns off a note with the same number i
+    }
+  }else{
+    // when a button OFF is sent
+    for (uint8_t i=69; i>60; i--) {
+      midiNoteOn(0, i, 127);
+      delay(100);
+      midiNoteOff(0, i, 127);
+    }
+  }
+}
+
+
+// activating a SERVO, depending on if the sent value is ON(HIGH) or OFF(LOW)
+void servoOnOff(int onOff){
+	// Allow allocation of all timers
+	ESP32PWM::allocateTimer(0);
+	ESP32PWM::allocateTimer(1);
+	ESP32PWM::allocateTimer(2);
+	ESP32PWM::allocateTimer(3);  
+  if(onOff == HIGH){
+    myservo.write(0);  // sets the servo position according to the value
+    delay(500); 
+  }else{
+    myservo.write(100); // sets the servo position according to the value
+    delay(500);      
+  }
 }
 
 
@@ -194,8 +425,7 @@ void setup() {
   // start the serial connection
   Serial.begin(9600);
   Serial.println("in setup");
-  while(! Serial); // wait for Serial to be ready
-  setup_devices(); // calls the setup functions for your specific input/outputs devices/sensors
+   setup_devices(); // calls the setup functions for your specific input/outputs devices/sensors
   setup_wifi();    // sets up the WIFI, creates the AP if necessary
   setup_aio();     // sets up connections to adafruit.io
   setup_subscribers(); // sets up connections to the adafruit feeds
@@ -238,6 +468,9 @@ void setup_rate_limiter(){
 // it creates its own wifi where you can connect to it and give it new wifi credentials
 void setup_wifi(){
   wifiManager.autoConnect(my_device_name);
+  Serial.println("wifi connected");
+  led_flash(LED_BUILTIN, 100,125,8); // flash a light 8 times fast to say we connected to wifi
+
 }
 
 // setup the Adafruit.io connections
@@ -342,3 +575,63 @@ void led_flash(int pin, int onms, int offms, int times){
     delay(offms);
   }
 }
+
+
+
+/*************************************
+DEVICE-SPECIFIC HELPER FUNCTIONS
+shouldn't need to change anything here...
+***************************************/
+
+
+// MIDI STUFF
+void midiSetInstrument(uint8_t chan, uint8_t inst) {
+  if (chan > 15) return;
+  inst --; // page 32 has instruments starting with 1 not 0 :(
+  if (inst > 127) return;
+  
+  VS1053_MIDI.write(MIDI_CHAN_PROGRAM | chan);  
+  delay(10);
+  VS1053_MIDI.write(inst);
+  delay(10);
+}
+
+
+void midiSetChannelVolume(uint8_t chan, uint8_t vol) {
+  if (chan > 15) return;
+  if (vol > 127) return;
+  
+  VS1053_MIDI.write(MIDI_CHAN_MSG | chan);
+  VS1053_MIDI.write(MIDI_CHAN_VOLUME);
+  VS1053_MIDI.write(vol);
+}
+
+void midiSetChannelBank(uint8_t chan, uint8_t bank) {
+  if (chan > 15) return;
+  if (bank > 127) return;
+  
+  VS1053_MIDI.write(MIDI_CHAN_MSG | chan);
+  VS1053_MIDI.write((uint8_t)MIDI_CHAN_BANK);
+  VS1053_MIDI.write(bank);
+}
+
+void midiNoteOn(uint8_t chan, uint8_t n, uint8_t vel) {
+  if (chan > 15) return;
+  if (n > 127) return;
+  if (vel > 127) return;
+  
+  VS1053_MIDI.write(MIDI_NOTE_ON | chan);
+  VS1053_MIDI.write(n);
+  VS1053_MIDI.write(vel);
+}
+
+void midiNoteOff(uint8_t chan, uint8_t n, uint8_t vel) {
+  if (chan > 15) return;
+  if (n > 127) return;
+  if (vel > 127) return;
+  
+  VS1053_MIDI.write(MIDI_NOTE_OFF | chan);
+  VS1053_MIDI.write(n);
+  VS1053_MIDI.write(vel);
+}
+// END MIDI STUFF
