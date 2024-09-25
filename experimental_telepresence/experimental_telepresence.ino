@@ -125,16 +125,34 @@ OUTPUT SETUP VARIABLES
 #include <ESP32Servo.h>
 Servo myservo;  // create servo object to control a servo
 int SERVO_OUTPUT_PIN = A0; 
+/* SERVO SETUP: 
+- the brown or black wire goes into GND (first!), 
+- the red or orange wire goes into USB
+- the other wire goes into A0
+*/
+
 // END SERVO SETUP VARIABLES
 
 // OUTPUT PIN for LEDS values
 const int LED_OUTPUT_PIN = LED_BUILTIN; // this uses the builtin LED for easy testing. But it could be other stuff!
+// if you use other LEDs, make sure to use a resistor along the LED circuit path.
 
 // OUTPUT PIN FOR A RELAY
 const int RELAY_OUTPUT_PIN = A0; // A0 pin is labeled A0 on the Ardiuno, 5 down from the top on the long side
+/* RELAY SETUP: 
+Just plug the RELAY shield into the top of your Arduino. 
+The A0 pin is already set up to connect correctly
+If this conflicts with inputs you want to use, we'll do some soldering.
+*/
+
 
 const int LATCHING_RELAY_SET_PIN = A0; // a different kind of relay that his different pins for SET (ON) and UNSET (OFF)
 const int LATCHING_RELAY_UNSET_PIN = A1; // a different kind of relay that his different pins for SET (ON) and UNSET (OFF)
+/* LATCHING RELAY SETUP: 
+Just plug the LATCHING RELAY shield into the top of your Arduino. 
+The A0 and A1 pins are already set up to connect correctly
+If this conflicts with inputs you want to use, we'll do some soldering.
+*/
 
 /*****************************************************
 END OUTPUT SETUP VARIABLES
