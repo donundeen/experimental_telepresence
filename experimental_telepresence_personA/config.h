@@ -2,7 +2,7 @@
 // before you upload this sketch to your arduino, change this to something unique to this device.
 // Whenever the device can't connect to wifi, it will set up it's own access point, with this name,
 // that you can connect to to enter the wifi credentials for the space you're in.
-#define MY_DEVICE_NAME "jared"
+#define MY_DEVICE_NAME "jeremysangel"
 
 /************************ Adafruit IO Config *******************************/
 
